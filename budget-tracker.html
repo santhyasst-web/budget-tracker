@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clarity — Budget Intelligence</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0a0f; --s2:#1a1a24; --border:#2a2a3a;
+  --a:#c8f545; --a2:#7c5cfc; --a3:#ff6b6b; --a4:#45d4c8;
+  --text:#f0f0f8; --muted:#6b6b8a; --card:#14141e;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(200,245,69,.3)}50%{box-shadow:0 0 0 8px rgba(200,245,69,0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── LAYOUT ── */
+.app{display:flex;min-height:100vh;}
+
+/* ── SIDEBAR ── */
+.sidebar{width:280px;flex-shrink:0;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:10;}
+.sb-logo{padding:20px 16px 16px;border-bottom:1px solid var(--border);}
+.sb-logo-text{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;}
+.sb-logo-text span{color:var(--a);}
+.sb-tagline{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-top:3px;}
+.sb-section{padding:14px 16px 6px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);}
+.sb-months{flex:1;overflow-y:auto;padding:6px 10px;}
+.sb-months::-webkit-scrollbar{width:3px;}
+.sb-months::-webkit-scrollbar-thumb{background:var(--border);}
+.month-btn{width:100%;text-align:left;background:none;border:1px solid transparent;color:var(--muted);padding:11px 14px;border-radius:12px;cursor:pointer;font-size:14px;font-family:'DM Sans',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:space-between;}
+.month-btn:hover{background:var(--s2);color:var(--text);}
+.month-btn.active{background:rgba(200,245,69,.1);color:var(--a);border:1px solid rgba(200,245,69,.2);}
+.month-btn .mo-amt{font-family:'DM Mono',monospace;font-size:11px;opacity:.7;}
+.sb-bottom{padding:16px;border-top:1px solid var(--border);}
+.add-btn{width:100%;background:rgba(200,245,69,.1);border:1px solid rgba(200,245,69,.25);color:var(--a);padding:12px;border-radius:12px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500;transition:all .2s;letter-spacing:.3px;}
+.add-btn:hover{background:rgba(200,245,69,.18);}
+
+/* ── MAIN ── */
+.main{margin-left:280px;flex:1;padding:36px 40px 80px;max-width:1400px;}
+
+/* ── EMPTY STATE ── */
+#empty-state{text-align:center;padding:80px 20px;animation:fadeUp .5s ease both;}
+.empty-title{font-family:'Playfair Display',serif;font-size:40px;font-weight:700;line-height:1.15;margin-bottom:14px;}
+.empty-title em{font-style:italic;color:var(--a);}
+.empty-sub{color:var(--muted);font-size:14px;max-width:380px;margin:0 auto 36px;line-height:1.7;}
+
+/* ── UPLOAD MODAL ── */
+#upload-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center;}
+#upload-modal.open{display:flex;}
+.modal-box{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:36px;max-width:480px;width:90%;animation:fadeUp .3s ease both;}
+.modal-title{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;margin-bottom:8px;}
+.modal-sub{color:var(--muted);font-size:13px;margin-bottom:24px;line-height:1.6;}
+.drop{border:1.5px dashed var(--border);border-radius:18px;padding:40px 24px;cursor:pointer;transition:all .3s;text-align:center;position:relative;overflow:hidden;}
+.drop::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(200,245,69,.04) 0%,transparent 70%);opacity:0;transition:opacity .3s;}
+.drop:hover,.drop.over{border-color:var(--a);box-shadow:0 12px 40px rgba(200,245,69,.07);}
+.drop:hover::before,.drop.over::before{opacity:1;}
+.drop-icon{font-size:36px;margin-bottom:10px;display:block;}
+.drop-label{font-size:15px;font-weight:500;margin-bottom:5px;}
+.drop-sub{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;}
+#file-input{display:none;}
+.modal-close{position:absolute;top:16px;right:16px;background:var(--s2);border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{color:var(--a3);}
+.priv-note{display:flex;gap:10px;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-top:16px;text-align:left;}
+.priv-text{font-size:11px;color:var(--muted);line-height:1.6;}
+.priv-text strong{color:var(--a);}
+
+/* ── PROCESSING ── */
+#proc-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;}
+#proc-modal.open{display:flex;}
+.proc-box{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:36px;max-width:420px;width:90%;text-align:center;}
+.proc-title{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;margin-bottom:6px;}
+.proc-sub{color:var(--muted);font-size:13px;margin-bottom:28px;}
+.steps{text-align:left;}
+.step{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);opacity:.25;transition:opacity .4s;}
+.step.active{opacity:1;}.step.done{opacity:.55;}
+.step-ic{width:30px;height:30px;border-radius:50%;background:var(--s2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+.step.active .step-ic{background:rgba(200,245,69,.1);border-color:var(--a);animation:pulse 1.5s ease infinite;}
+.step.done .step-ic{background:rgba(200,245,69,.1);border-color:var(--a);}
+.step-lbl{font-size:13px;font-weight:500;}
+.step-hint{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:1px;}
+
+/* ── DASHBOARD ── */
+#dash-view{display:none;animation:fadeUp .4s ease both;}
+.dash-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
+.dash-month{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;letter-spacing:-.5px;}
+.dash-period{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:3px;}
+.del-btn{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);color:var(--a3);padding:7px 14px;border-radius:100px;cursor:pointer;font-size:11px;font-family:'DM Sans',sans-serif;transition:all .2s;}
+.del-btn:hover{background:rgba(255,107,107,.15);}
+
+.sum-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+.sum-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;position:relative;overflow:hidden;transition:transform .2s;}
+.sum-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.s1::after{background:var(--a3);}.s2::after{background:var(--a2);}.s3::after{background:var(--a4);}
+.c-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.c-val{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;letter-spacing:-1px;}
+.s1 .c-val{color:var(--a3);}.s2 .c-val{color:var(--a2);font-size:15px;line-height:1.4;}.s3 .c-val{color:var(--a4);}
+.c-sub{font-size:11px;color:var(--muted);margin-top:5px;}
+
+/* ── TREND SECTION ── */
+.trend-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:20px;}
+.trend-title{font-size:11px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;}
+.trend-wrap{position:relative;height:200px;}
+
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;}
+.ct{font-size:11px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;}
+.cw{position:relative;height:240px;}
+
+.panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:20px;}
+.pt{font-size:11px;font-weight:500;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;}
+
+/* MOM comparison */
+.mom-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;}
+.mom-card{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:14px;}
+.mom-cat{font-size:12px;font-weight:500;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.mom-vals{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);}
+.mom-change{font-size:11px;font-weight:500;margin-top:4px;}
+.up{color:var(--a3);}.down{color:var(--a4);}.same{color:var(--muted);}
+
+.cat-list{display:flex;flex-direction:column;gap:10px;}
+.cat-row{display:flex;align-items:center;gap:10px;}
+.cat-ic{font-size:16px;width:28px;text-align:center;flex-shrink:0;}
+.cat-inf{flex:1;}
+.cat-nm{font-size:12px;margin-bottom:4px;display:flex;justify-content:space-between;}
+.cat-amt{font-family:'DM Mono',monospace;font-size:11px;color:var(--a3);}
+.bar-track{height:4px;background:var(--s2);border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+
+.tx-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+.tx-filters{display:flex;gap:4px;flex-wrap:wrap;}
+.txf{background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:4px 10px;border-radius:100px;cursor:pointer;font-size:10px;font-family:'DM Mono',monospace;transition:all .2s;}
+.txf.on,.txf:hover{border-color:var(--a);color:var(--a);}
+.tx-list{display:flex;flex-direction:column;gap:1px;max-height:520px;overflow-y:auto;}
+.tx-list::-webkit-scrollbar{width:3px;}
+.tx-list::-webkit-scrollbar-thumb{background:var(--border);}
+.tx-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;transition:background .15s;}
+.tx-row:hover{background:var(--s2);}
+.tx-ic{font-size:13px;width:22px;text-align:center;flex-shrink:0;}
+.tx-d{flex:1;font-size:12px;min-width:0;}
+.tx-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tx-meta{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:1px;}
+.tx-date{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;flex-shrink:0;}
+.tx-amt{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;flex-shrink:0;min-width:64px;text-align:right;}
+
+#ins-card{background:linear-gradient(135deg,rgba(124,92,252,.08) 0%,rgba(200,245,69,.04) 100%);border:1px solid rgba(124,92,252,.3);border-radius:16px;padding:20px;margin-bottom:20px;}
+.ins-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.ins-t{font-size:11px;color:var(--a2);font-family:'DM Mono',monospace;letter-spacing:1px;text-transform:uppercase;}
+.ai-badge{background:rgba(124,92,252,.2);border:1px solid rgba(124,92,252,.3);color:var(--a2);font-size:9px;font-family:'DM Mono',monospace;padding:2px 7px;border-radius:4px;}
+.ins-text{font-size:13px;line-height:1.75;color:var(--text);}
+.ins-load{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;}
+.spinner{width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--a2);border-radius:50%;animation:spin .8s linear infinite;}
+
+.err{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.3);border-radius:12px;padding:14px 18px;color:var(--a3);font-size:13px;margin-top:12px;display:none;line-height:1.6;}
+
+/* ── MOBILE ── */
+@media(max-width:800px){
+  .sidebar{width:100%;height:auto;position:relative;flex-direction:column;}
+  .main{margin-left:0;}
+  .app{flex-direction:column;}
+  .sb-months{display:flex;flex-direction:row;padding:4px;overflow-x:auto;}
+  .month-btn{white-space:nowrap;width:auto;}
+  .sum-grid{grid-template-columns:1fr 1fr;}
+  .charts-row{grid-template-columns:1fr;}
+  .s2{display:none;}
+}
+
+/* Confirm modal */
+#confirm-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;}
+#confirm-modal.open{display:flex;}
+.confirm-box{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;max-width:360px;width:90%;text-align:center;}
+.confirm-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;margin-bottom:8px;}
+.confirm-sub{color:var(--muted);font-size:13px;margin-bottom:24px;line-height:1.5;}
+.confirm-btns{display:flex;gap:10px;justify-content:center;}
+.confirm-yes{background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.4);color:var(--a3);padding:10px 24px;border-radius:100px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;transition:all .2s;}
+.confirm-yes:hover{background:rgba(255,107,107,.25);}
+.confirm-no{background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:10px 24px;border-radius:100px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;transition:all .2s;}
+.confirm-no:hover{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-text">Clarity<span>.</span></div>
+      <div class="sb-tagline">Scotiabank Tracker</div>
+    </div>
+    <div class="sb-section">Statements</div>
+    <div class="sb-months" id="month-list">
+      <div style="padding:8px 10px;font-size:12px;color:var(--muted)">No statements yet</div>
+    </div>
+    <div class="sb-bottom">
+      <button class="add-btn" onclick="openUpload()">＋ Add Statement</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- Empty state -->
+    <div id="empty-state">
+      <div class="empty-title">Track your spending<br><em>month by month.</em></div>
+      <div class="empty-sub">Upload your Scotiabank statements and watch your financial history build up over time. See trends, compare months, and get AI insights.</div>
+      <button class="add-btn" style="max-width:240px;margin:0 auto;display:block;padding:14px;" onclick="openUpload()">＋ Upload First Statement</button>
+    </div>
+
+    <!-- Dashboard view -->
+    <div id="dash-view">
+      <div class="dash-hdr">
+        <div>
+          <div class="dash-month" id="d-month">February 2026</div>
+          <div class="dash-period" id="d-period"></div>
+        </div>
+        <button class="del-btn" onclick="deleteMonth()">🗑 Delete This Month</button>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="sum-grid">
+        <div class="sum-card s1"><div class="c-lbl">Total Spent</div><div class="c-val" id="d-total">$0</div><div class="c-sub" id="d-tsub"></div></div>
+        <div class="sum-card s2"><div class="c-lbl">Top Category</div><div class="c-val" id="d-top">—</div><div class="c-sub" id="d-topsub"></div></div>
+        <div class="sum-card s3"><div class="c-lbl">Avg per Transaction</div><div class="c-val" id="d-avg">$0</div><div class="c-sub" id="d-avgsub"></div></div>
+      </div>
+
+      <!-- AI Insights -->
+      <div id="ins-card">
+        <div class="ins-hdr"><div class="ins-t">AI Insights</div><div class="ai-badge">CLAUDE</div></div>
+        <div id="ins-body"><div class="ins-load"><div class="spinner"></div> Generating insights…</div></div>
+      </div>
+
+      <!-- Trend (shows when 2+ months) -->
+      <div id="trend-section" style="display:none">
+        <div class="trend-card">
+          <div class="trend-title">📈 6-Month Spending Trend</div>
+          <div class="trend-wrap"><canvas id="trend-chart"></canvas></div>
+        </div>
+        <div class="panel" id="mom-section">
+          <div class="pt">Month-over-Month Comparison</div>
+          <div class="mom-grid" id="mom-grid"></div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-row">
+        <div class="chart-card"><div class="ct">By Category</div><div class="cw"><canvas id="donut"></canvas></div></div>
+        <div class="chart-card"><div class="ct">Daily Spending</div><div class="cw"><canvas id="bar"></canvas></div></div>
+      </div>
+
+      <!-- Category breakdown -->
+      <div class="panel"><div class="pt">Category Breakdown</div><div class="cat-list" id="cat-list"></div></div>
+
+      <!-- Transactions -->
+      <div class="panel">
+        <div class="tx-hdr">
+          <div class="pt" style="margin-bottom:0">Transactions</div>
+          <div class="tx-filters" id="tx-filters"></div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="tx-list" id="tx-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="upload-modal">
+  <div class="modal-box" style="position:relative">
+    <button class="modal-close" onclick="closeUpload()">✕</button>
+    <div class="modal-title">Add Statement</div>
+    <div class="modal-sub">Upload your Scotiabank PDF. Sensitive details are removed before any analysis.</div>
+    <div class="drop" id="drop">
+      <span class="drop-icon">📄</span>
+      <div class="drop-label">Click or drag your PDF here</div>
+      <div class="drop-sub">Scotiabank PDF format</div>
+      <input type="file" id="file-input" accept=".pdf">
+    </div>
+    <div class="priv-note">
+      <span style="font-size:16px;flex-shrink:0">🛡️</span>
+      <div class="priv-text"><strong>Privacy protected.</strong> Your name, card number, address and phone numbers are removed before AI analysis. Only transaction dates, merchants, and amounts are processed.</div>
+    </div>
+    <div class="err" id="err-box"></div>
+  </div>
+</div>
+
+<!-- PROCESSING MODAL -->
+<div id="proc-modal">
+  <div class="proc-box">
+    <div class="proc-title">Reading statement…</div>
+    <div class="proc-sub">About 10–15 seconds</div>
+    <div class="steps">
+      <div class="step" id="s1"><div class="step-ic">📄</div><div><div class="step-lbl">Reading PDF</div><div class="step-hint">Converting to base64</div></div></div>
+      <div class="step" id="s2"><div class="step-ic">🔒</div><div><div class="step-lbl">Protecting privacy</div><div class="step-hint">Sensitive details flagged for removal</div></div></div>
+      <div class="step" id="s3"><div class="step-ic">🤖</div><div><div class="step-lbl">AI reading statement</div><div class="step-hint">Extracting all transactions</div></div></div>
+      <div class="step" id="s4"><div class="step-ic">💾</div><div><div class="step-lbl">Saving to history</div><div class="step-hint">Stored for future sessions</div></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONSTANTS ──────────────────────────────────────────────────────────────
+const CATS = {
+  'Food Delivery':     { icon:'🛵', kw:['ubereats','uber canada/ubereats','doordash','skip the dishes','instacart'] },
+  'Transport':         { icon:'🚗', kw:['ubertrip','uber canada/ubertrip','lyft','parking','presto','transit','scotiabank transit'] },
+  'Food & Dining':     { icon:'🍔', kw:['restaurant','cafe','coffee','mcdonald','kfc','pizza','burger','sushi','subway','starbucks','tim horton','hakka','burrito','harvey','culture cafe','madras','chettinaad','chicopee','swagat'] },
+  'Groceries':         { icon:'🛒', kw:['walmart','wal-mart','costco','loblaws','sobeys','whole foods','zehrs','superstore','food basics','no frills','farm boy','dollarama'] },
+  'Shopping':          { icon:'🛍️', kw:['amazon','amzn','ebay','best buy','ikea','shein','marshalls','homesense','winners','sport chek','indigo','logitech','global-e','vapi'] },
+  'Health & Beauty':   { icon:'💅', kw:['pharmacy','spa','salon','esthetic','beauty','massage','physio','anita','oceania','movati','skin care'] },
+  'Entertainment':     { icon:'🎬', kw:['netflix','spotify','disney','cinema','theatre','steam','xbox','playstation','concert','smart software','bingemans','kingpin','claude.ai','anthropic'] },
+  'Utilities & Bills': { icon:'💡', kw:['fido','rogers','bell ','telus','koodo','virgin mobile','insurance','wireless','internet','hydro'] },
+};
+const COLORS = ['#ff6b6b','#c8f545','#7c5cfc','#45d4c8','#ffb347','#87ceeb','#ff69b4','#98fb98','#dda0dd','#f0e68c'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let CH = {}, ALL_TX = [], ACTIVE_KEY = null;
+
+// ─── STORAGE ────────────────────────────────────────────────────────────────
+async function saveMonth(key, data) {
+  try { await window.storage.set(key, JSON.stringify(data)); } catch(e) { console.error('Save failed',e); }
+}
+async function loadAllMonths() {
+  try {
+    const result = await window.storage.list('month:');
+    if (!result?.keys?.length) return {};
+    const months = {};
+    for (const k of result.keys) {
+      try {
+        const r = await window.storage.get(k);
+        if (r?.value) months[k] = JSON.parse(r.value);
+      } catch {}
+    }
+    return months;
+  } catch { return {}; }
+}
+async function deleteMonthData(key) {
+  try { await window.storage.delete(key); } catch {}
+}
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const delay = ms => new Promise(r => setTimeout(r, ms));
+const fmt = n => '$' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const sortD = d => { const p=(d||'').split(' '); return MONTHS.indexOf(p[0])*31+parseInt(p[1]||0); };
+
+function setStep(n) {
+  for (let i=1;i<=4;i++) {
+    const el=$('s'+i); el.classList.remove('active','done');
+    if(i<n){el.classList.add('done');el.querySelector('.step-ic').textContent='✓';}
+    if(i===n) el.classList.add('active');
+  }
+}
+function showErr(msg) { $('err-box').innerHTML='⚠️ '+msg; $('err-box').style.display='block'; }
+function categorise(desc) {
+  const low=(desc||'').toLowerCase();
+  for(const [cat,{kw}] of Object.entries(CATS)) if(kw.some(k=>low.includes(k))) return cat;
+  return 'Other';
+}
+
+// ─── UPLOAD MODAL ───────────────────────────────────────────────────────────
+function openUpload() { $('upload-modal').classList.add('open'); $('err-box').style.display='none'; }
+function closeUpload() { $('upload-modal').classList.remove('open'); $('file-input').value=''; }
+
+const drop=$('drop'), fi=$('file-input');
+drop.addEventListener('click',()=>fi.click());
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');const f=e.dataTransfer.files[0];f?.type==='application/pdf'?run(f):showErr('Please select a PDF file.');});
+fi.addEventListener('change',e=>{if(e.target.files[0])run(e.target.files[0]);});
+
+// ─── MAIN FLOW ───────────────────────────────────────────────────────────────
+async function run(file) {
+  closeUpload();
+  $('proc-modal').classList.add('open');
+  try {
+    setStep(1);
+    const b64 = await fileToBase64(file);
+
+    setStep(2); await delay(500);
+
+    setStep(3);
+    const result = await extractTransactions(b64);
+    const transactions = result.transactions;
+    if (!transactions?.length) throw new Error('No transactions found. Please upload a Scotiabank statement PDF.');
+
+    setStep(4); await delay(400);
+
+    // Use statement period month/year from Claude, or fall back to inferring from dates
+    const key = buildMonthKey(result.statementMonth, result.statementYear, transactions);
+    const monthData = {
+      key, transactions,
+      savedAt: Date.now(),
+      total: transactions.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0)
+    };
+
+    await saveMonth(key, monthData);
+    $('proc-modal').classList.remove('open');
+
+    await refreshSidebar();
+    showDashboard(key, monthData);
+
+  } catch(e) {
+    $('proc-modal').classList.remove('open');
+    openUpload();
+    showErr(e.message||'Something went wrong. Please try again.');
+  }
+}
+
+function buildMonthKey(statementMonth, statementYear, txs) {
+  // Prefer the statement period month/year returned by Claude
+  if (statementMonth && statementYear) {
+    return `month:${statementYear}-${String(statementMonth).padStart(2,'0')}`;
+  }
+  // Fallback: find the EARLIEST month in transactions (statement start month)
+  const counts = {};
+  txs.forEach(t => {
+    const parts = (t.date||'').split(' ');
+    if (parts.length >= 2) {
+      const mo = MONTHS.indexOf(parts[0]);
+      if (mo >= 0) counts[mo] = (counts[mo]||0) + 1;
+    }
+  });
+  // Use earliest month, not most common (avoids Feb statement with March dates)
+  const allMonths = Object.keys(counts).map(Number).sort((a,b)=>a-b);
+  const earliestMo = allMonths[0] ?? 0;
+  const year = new Date().getFullYear();
+  return `month:${year}-${String(earliestMo+1).padStart(2,'0')}`;
+}
+
+function keyToLabel(key) {
+  // "month:2026-02" → "February 2026"
+  const parts = key.replace('month:','').split('-');
+  const mo = parseInt(parts[1])-1;
+  return `${MONTH_NAMES[mo]} ${parts[0]}`;
+}
+
+// ─── SIDEBAR ────────────────────────────────────────────────────────────────
+async function refreshSidebar() {
+  const months = await loadAllMonths();
+  const keys = Object.keys(months).sort().reverse();
+  const list = $('month-list');
+  if (!keys.length) {
+    list.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:var(--muted)">No statements yet</div>';
+    return;
+  }
+  list.innerHTML = keys.map(k => {
+    const d = months[k];
+    const active = k === ACTIVE_KEY ? ' active' : '';
+    return `<button class="month-btn${active}" onclick="loadMonth('${k}')">
+      <span>${keyToLabel(k)}</span>
+      <span class="mo-amt">${fmt(d.total)}</span>
+    </button>`;
+  }).join('');
+}
+
+async function loadMonth(key) {
+  const months = await loadAllMonths();
+  const data = months[key];
+  if (!data) return;
+  ACTIVE_KEY = key;
+  await refreshSidebar();
+  showDashboard(key, data);
+}
+
+async function deleteMonth() {
+  if (!ACTIVE_KEY) return;
+  // Show custom confirm (window.confirm blocked in iframe/artifact viewer)
+  const label = keyToLabel(ACTIVE_KEY);
+  $('confirm-label').textContent = `Delete ${label}?`;
+  $('confirm-modal').classList.add('open');
+}
+
+async function confirmDelete() {
+  $('confirm-modal').classList.remove('open');
+  if (!ACTIVE_KEY) return;
+  await deleteMonthData(ACTIVE_KEY);
+  ACTIVE_KEY = null;
+  await refreshSidebar();
+  const months = await loadAllMonths();
+  const remaining = Object.keys(months).sort().reverse();
+  if (remaining.length) {
+    loadMonth(remaining[0]);
+  } else {
+    $('dash-view').style.display = 'none';
+    $('empty-state').style.display = 'block';
+  }
+}
+
+function cancelDelete() {
+  $('confirm-modal').classList.remove('open');
+}
+
+// ─── FILE → BASE64 ───────────────────────────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise((resolve,reject) => {
+    const r = new FileReader();
+    r.onload = () => { const b64=r.result.split(',')[1]; b64?resolve(b64):reject(new Error('Could not read file')); };
+    r.onerror = () => reject(new Error('Could not read file'));
+    r.readAsDataURL(file);
+  });
+}
+
+// ─── CLAUDE PDF PARSING ──────────────────────────────────────────────────────
+async function extractTransactions(b64) {
+  const prompt = `You are reading a Scotiabank credit card statement PDF.
+
+Step 1: Find the Statement Period line (e.g. "Statement Period Feb 6, 2026 - Mar 5, 2026"). Extract the START month (1-12) and year.
+
+Step 2: Extract every transaction. Columns: REF# | TRANS DATE | POST DATE | DETAILS | AMOUNT($)
+Rules:
+- Purchases = type "debit"
+- Payments/credits (amount ends with "-", details have "PAYMENT FROM" or "SCOTIABANK TRANSIT") = type "credit"
+- Combine wrapped detail lines
+- Skip: headers, interest rows, sub-totals, account summary, page numbers
+
+PRIVACY: Do NOT include cardholder name, card number, account number, address, or phone numbers.
+
+Return ONLY a valid JSON object. No markdown, no backticks, no text before or after. Must start with { and end with }.
+{"statementMonth":2,"statementYear":2026,"transactions":[{"ref":"001","date":"Feb 6","details":"SHEIN.COM Toronto ON","amount":140.64,"type":"debit"}]}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:4096,
+      messages:[{role:'user',content:[
+        {type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}},
+        {type:'text',text:prompt}
+      ]}]
+    })
+  });
+
+  if(!res.ok) throw new Error(`API error (${res.status}). Please try again.`);
+  const data = await res.json();
+  if(data.type==='error') throw new Error(data.error?.message||'API error');
+
+  const raw = (data.content?.[0]?.text||'').trim();
+  let statementMonth = null, statementYear = null, txArray = [];
+
+  // Try object format: {"statementMonth":2,"statementYear":2026,"transactions":[...]}
+  const objStart = raw.indexOf('{'), objEnd = raw.lastIndexOf('}');
+  if (objStart !== -1 && objEnd > objStart) {
+    try {
+      const obj = JSON.parse(raw.substring(objStart, objEnd+1));
+      if (obj.transactions && Array.isArray(obj.transactions)) {
+        txArray = obj.transactions;
+        statementMonth = parseInt(obj.statementMonth) || null;
+        statementYear  = parseInt(obj.statementYear)  || null;
+      }
+    } catch {}
+  }
+  // Fallback: plain array
+  if (!txArray.length) {
+    const arrStart = raw.indexOf('['), arrEnd = raw.lastIndexOf(']');
+    if (arrStart !== -1 && arrEnd > arrStart) {
+      try { txArray = JSON.parse(raw.substring(arrStart, arrEnd+1)); } catch {}
+    }
+  }
+  if (!txArray.length) throw new Error('Could not parse transactions. Please try again.');
+
+  const transactions = txArray.filter(t=>t&&typeof t.amount!=='undefined').map(t=>({
+    ref:String(t.ref||''),
+    date:String(t.date||''),
+    details:String(t.details||'Unknown').slice(0,65),
+    amount:Math.abs(parseFloat(t.amount)||0),
+    type:String(t.type||'').toLowerCase()==='credit'?'credit':'debit',
+    category:String(t.type||'').toLowerCase()==='credit'?'Payment/Credit':categorise(String(t.details||''))
+  }));
+  return { transactions, statementMonth, statementYear };
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+async function showDashboard(key, data) {
+  ACTIVE_KEY = key;
+  ALL_TX = data.transactions;
+  $('empty-state').style.display = 'none';
+  $('dash-view').style.display = 'block';
+
+  const txs = data.transactions;
+  const debits = txs.filter(t=>t.type==='debit');
+  const credits = txs.filter(t=>t.type==='credit');
+  const total = debits.reduce((s,t)=>s+t.amount,0);
+  const paid = credits.reduce((s,t)=>s+t.amount,0);
+  const avg = debits.length?total/debits.length:0;
+  const dates = txs.map(t=>t.date).filter(Boolean).sort((a,b)=>sortD(a)-sortD(b));
+
+  $('d-month').textContent = keyToLabel(key);
+  $('d-period').textContent = dates.length?`${dates[0]} – ${dates[dates.length-1]}  ·  ${txs.length} transactions`:'';
+  $('d-total').textContent = fmt(total);
+  $('d-tsub').textContent = `${debits.length} purchases · ${fmt(paid)} paid`;
+  $('d-avg').textContent = fmt(avg);
+  $('d-avgsub').textContent = 'per purchase';
+
+  const catMap={};
+  debits.forEach(t=>{catMap[t.category]=(catMap[t.category]||0)+t.amount;});
+  const sorted=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  const maxAmt=sorted[0]?.[1]||1;
+
+  if(sorted.length){
+    const[tc,ta]=sorted[0];
+    $('d-top').textContent=(CATS[tc]?.icon||'📦')+' '+tc;
+    $('d-topsub').textContent=fmt(ta)+' this period';
+  }
+
+  // Category bars
+  $('cat-list').innerHTML=sorted.map(([cat,amt],i)=>{
+    const pct=Math.round(amt/total*100);
+    const col=COLORS[i%COLORS.length];
+    return `<div class="cat-row">
+      <span class="cat-ic">${CATS[cat]?.icon||'📦'}</span>
+      <div class="cat-inf">
+        <div class="cat-nm"><span>${cat}</span><span class="cat-amt">${fmt(amt)} <span style="color:var(--muted);font-size:10px">${pct}%</span></span></div>
+        <div class="bar-track"><div class="bar-fill" style="width:0%;background:${col}" data-w="${amt/maxAmt*100}"></div></div>
+      </div></div>`;
+  }).join('');
+  setTimeout(()=>document.querySelectorAll('.bar-fill').forEach(el=>el.style.width=el.dataset.w+'%'),120);
+
+  // Filters
+  $('tx-filters').innerHTML=['All',...sorted.map(([c])=>c),'Payment/Credit'].map((c,i)=>
+    `<button class="txf${i===0?' on':''}" onclick="filterTx(this,'${c.replace(/'/g,"\\'")}')">${c}</button>`
+  ).join('');
+  renderTx(txs);
+  buildCharts(sorted,debits,total);
+
+  // Multi-month features
+  await buildTrend(key);
+
+  // AI Insights
+  $('ins-body').innerHTML=`<div class="ins-load"><div class="spinner"></div> Generating insights…</div>`;
+  getInsights(txs, key);
+}
+
+function renderTx(txs) {
+  const list=[...txs].sort((a,b)=>sortD(a.date)-sortD(b.date));
+  $('tx-list').innerHTML=list.map(t=>{
+    const cr=t.type==='credit';
+    return `<div class="tx-row">
+      <div class="tx-ic">${cr?'💳':(CATS[t.category]?.icon||'📦')}</div>
+      <div class="tx-d"><div class="tx-main">${t.details}</div><div class="tx-meta">${t.category}${t.ref?' · #'+t.ref:''}</div></div>
+      <div class="tx-date">${t.date}</div>
+      <div class="tx-amt" style="color:${cr?'var(--a4)':'var(--a3)'}">${cr?'+':'-'}${fmt(t.amount)}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterTx(btn,cat) {
+  document.querySelectorAll('.txf').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderTx(cat==='All'?ALL_TX:ALL_TX.filter(t=>t.category===cat));
+}
+
+function buildCharts(sorted,debits,total) {
+  if(CH.d)CH.d.destroy(); if(CH.b)CH.b.destroy();
+  CH.d=new Chart($('donut').getContext('2d'),{type:'doughnut',
+    data:{labels:sorted.map(([c])=>c),datasets:[{data:sorted.map(([,v])=>v),backgroundColor:COLORS.slice(0,sorted.length),borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#6b6b8a',font:{family:'DM Mono',size:9},padding:7,boxWidth:9}},
+      tooltip:{callbacks:{label:ctx=>` ${fmt(ctx.raw)} (${Math.round(ctx.raw/total*100)}%)`}}}}});
+
+  // Only include transactions with valid "Mon DD" dates (e.g. "Feb 6")
+  const dm={};
+  debits.forEach(t=>{
+    const p=(t.date||'').trim().split(' ');
+    // Valid date = 2 parts, first is a month name, second is a number
+    if(p.length===2 && MONTHS.indexOf(p[0])>=0 && !isNaN(parseInt(p[1]))) {
+      dm[t.date]=(dm[t.date]||0)+t.amount;
+    }
+  });
+  const dk=Object.keys(dm).sort((a,b)=>sortD(a)-sortD(b));
+  // Show just the day number on x-axis to save space (e.g. "Feb 6" → "6")
+  const dkLabels=dk.map(d=>d.split(' ')[1]||d);
+  CH.b=new Chart($('bar').getContext('2d'),{type:'bar',
+    data:{labels:dkLabels,datasets:[{data:dk.map(d=>dm[d]),backgroundColor:'rgba(200,245,69,.22)',borderColor:'#c8f545',borderWidth:1,borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{title:idx=>'Day: '+dk[idx[0].dataIndex],label:ctx=>` ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#6b6b8a',font:{size:9,family:'DM Mono'},maxTicksLimit:16},grid:{color:'#1a1a24'},title:{display:true,text:'Day of month',color:'#6b6b8a',font:{size:9,family:'DM Mono'}}},
+              y:{ticks:{color:'#6b6b8a',font:{size:8,family:'DM Mono'},callback:v=>'$'+v},grid:{color:'#1a1a24'}}}}});
+}
+
+// ─── TREND (multi-month) ─────────────────────────────────────────────────────
+async function buildTrend(currentKey) {
+  const months = await loadAllMonths();
+  const keys = Object.keys(months).sort();
+  if (keys.length < 2) { $('trend-section').style.display='none'; return; }
+  $('trend-section').style.display='block';
+
+  const labels = keys.map(k=>keyToLabel(k).split(' ')[0]+' '+keyToLabel(k).split(' ')[1].slice(2));
+  const totals = keys.map(k=>months[k].transactions.filter(t=>t.type==='debit').reduce((s,t)=>s+t.amount,0));
+
+  if(CH.trend)CH.trend.destroy();
+  CH.trend=new Chart($('trend-chart').getContext('2d'),{type:'line',
+    data:{labels,datasets:[{label:'Total Spent',data:totals,borderColor:'#c8f545',backgroundColor:'rgba(200,245,69,.08)',borderWidth:2,pointBackgroundColor:'#c8f545',pointRadius:5,tension:.3,fill:true}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>` ${fmt(ctx.raw)}`}}},
+      scales:{x:{ticks:{color:'#6b6b8a',font:{size:9,family:'DM Mono'}},grid:{color:'#1a1a24'}},
+              y:{ticks:{color:'#6b6b8a',font:{size:9,family:'DM Mono'},callback:v=>'$'+v},grid:{color:'#1a1a24'}}}}});
+
+  // Month-over-month comparison (current vs previous)
+  const currentIdx = keys.indexOf(currentKey);
+  if (currentIdx > 0) {
+    const prevKey = keys[currentIdx-1];
+    const curr = months[currentKey].transactions.filter(t=>t.type==='debit');
+    const prev = months[prevKey].transactions.filter(t=>t.type==='debit');
+    const currCats={}, prevCats={};
+    curr.forEach(t=>{currCats[t.category]=(currCats[t.category]||0)+t.amount;});
+    prev.forEach(t=>{prevCats[t.category]=(prevCats[t.category]||0)+t.amount;});
+    const allCats=[...new Set([...Object.keys(currCats),...Object.keys(prevCats)])].filter(c=>c!=='Payment/Credit');
+
+    $('mom-grid').innerHTML = allCats.map(cat => {
+      const c=currCats[cat]||0, p=prevCats[cat]||0;
+      const diff=c-p, pct=p>0?Math.round((diff/p)*100):0;
+      const cls=diff>5?'up':diff<-5?'down':'same';
+      const arrow=diff>5?'↑':diff<-5?'↓':'→';
+      const prevLabel = keyToLabel(prevKey).split(' ')[0];
+      return `<div class="mom-card">
+        <div class="mom-cat">${CATS[cat]?.icon||'📦'} ${cat}</div>
+        <div class="mom-vals">Now: ${fmt(c)}<br>Last: ${fmt(p)} (${prevLabel})</div>
+        <div class="mom-change ${cls}">${arrow} ${diff>=0?'+':''}${fmt(diff)} (${pct>0?'+':''}${pct}%)</div>
+      </div>`;
+    }).join('');
+  } else {
+    $('mom-section').style.display='none';
+  }
+}
+
+// ─── AI INSIGHTS ─────────────────────────────────────────────────────────────
+async function getInsights(txs, key) {
+  const debits=txs.filter(t=>t.type==='debit');
+  const total=debits.reduce((s,t)=>s+t.amount,0);
+  const cm={};debits.forEach(t=>{cm[t.category]=(cm[t.category]||0)+t.amount;});
+  const top5=Object.entries(cm).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([c,v])=>`${c}: ${fmt(v)}`).join(', ');
+  const uberAmt=debits.filter(t=>t.details.toLowerCase().includes('uber')).reduce((s,t)=>s+t.amount,0);
+  const uberN=debits.filter(t=>t.details.toLowerCase().includes('uber')).length;
+  const month=keyToLabel(key);
+
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,messages:[{role:'user',content:
+        `You are a friendly personal finance advisor reviewing a Scotiabank credit card statement for ${month}.
+Total spent: ${fmt(total)} across ${debits.length} purchases.
+Top categories: ${top5}
+Uber/delivery: ${fmt(uberAmt)} across ${uberN} transactions.
+Biggest purchase: ${fmt(Math.max(...debits.map(t=>t.amount)))}
+Write 3 short personalised insights. Plain text only — no bullet points, no markdown. Each 2–3 sentences. Warm and practical.`}]})});
+    const d=await res.json();
+    const txt=d.content?.[0]?.text||'';
+    $('ins-body').innerHTML=`<div class="ins-text">${txt.replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div>`;
+  } catch {
+    $('ins-body').innerHTML=`<div class="ins-text">Dashboard ready above!</div>`;
+  }
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+async function init() {
+  await refreshSidebar();
+  const months = await loadAllMonths();
+  const keys = Object.keys(months).sort().reverse();
+  if (keys.length > 0) {
+    loadMonth(keys[0]);
+  }
+}
+init();
+</script>
+
+<!-- CONFIRM DELETE MODAL -->
+<div id="confirm-modal">
+  <div class="confirm-box">
+    <div class="confirm-title">Delete Statement</div>
+    <div class="confirm-sub" id="confirm-label">Delete this month?</div>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:20px;">This cannot be undone.</div>
+    <div class="confirm-btns">
+      <button class="confirm-no" onclick="cancelDelete()">Cancel</button>
+      <button class="confirm-yes" onclick="confirmDelete()">Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
